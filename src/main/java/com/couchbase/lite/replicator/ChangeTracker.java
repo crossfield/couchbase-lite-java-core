@@ -31,8 +31,10 @@ import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -253,13 +255,6 @@ public class ChangeTracker implements Runnable {
             return;
         }
 
-        if (mode == ChangeTrackerMode.Continuous) {
-            // there is a failing unit test for this, and from looking at the code the Replication
-            // object will never use Continuous mode anyway.  Explicitly prevent its use until
-            // it is demonstrated to actually work.
-            throw new RuntimeException("ChangeTracker does not correctly support continuous mode");
-        }
-
         httpClient = client.getHttpClient();
         backoff = new ChangeTrackerBackoff();
 
@@ -345,7 +340,7 @@ public class ChangeTracker implements Runnable {
                         input = entity.getContent();
                         Log.v(Log.TAG_CHANGE_TRACKER, "%s: /entity.getContent().  mode: %s", this, mode);
 
-                        if (mode == ChangeTrackerMode.LongPoll) {  // continuous replications
+                        if (mode == ChangeTrackerMode.LongPoll) {
                             Log.v(Log.TAG_CHANGE_TRACKER, "%s: readValue", this);
                             Map<String, Object> fullBody = Manager.getObjectMapper().readValue(input, Map.class);
                             Log.v(Log.TAG_CHANGE_TRACKER, "%s: /readValue.  fullBody: %s", this, fullBody);
@@ -369,6 +364,42 @@ public class ChangeTracker implements Runnable {
                                 client.changeTrackerFinished(this);
                                 break;
                             }
+
+                        } else if (mode == ChangeTrackerMode.Continuous) {
+
+                            BufferedReader reader
+                                    = new BufferedReader(new InputStreamReader(input));
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                if (line == null || line.length() == 0) {
+                                    continue;
+                                }
+
+                                try {
+                                    Log.v(Log.TAG_CHANGE_TRACKER, "%s: readValue (continuous)", this);
+                                    JsonFactory jsonFactory = Manager.getObjectMapper().getJsonFactory();
+                                    JsonParser jp = jsonFactory.createJsonParser(line);
+
+                                    while (jp.nextToken() == JsonToken.START_OBJECT) {
+                                        Map<String, Object> change = (Map) Manager.getObjectMapper()
+                                                .readValue(jp, Map.class);
+                                        if (receivedChange(change)) {
+                                            if (client != null) {
+                                                client.changeTrackerCaughtUp();
+                                            }
+                                        } else {
+                                            Log.w(Log.TAG_CHANGE_TRACKER,
+                                                    "Received unparseable change line from server: %s",
+                                                    change);
+                                        }
+
+                                    }
+                                } catch (Exception ex) {
+                                    Log.w(Log.TAG_CHANGE_TRACKER, "Error parse response", ex);
+                                }
+                            }
+
+
                         } else {  // one-shot replications
 
                             Log.v(Log.TAG_CHANGE_TRACKER, "%s: readValue (oneshot)", this);
@@ -394,7 +425,7 @@ public class ChangeTracker implements Runnable {
                             }
 
                             if (isContinuous()) {  // if enclosing replication is continuous
-                                mode = ChangeTrackerMode.LongPoll;
+                                mode = ChangeTrackerMode.Continuous;
                             } else {
                                 Log.w(Log.TAG_CHANGE_TRACKER, "%s: Change tracker calling stop (OneShot)", this);
                                 client.changeTrackerFinished(this);
