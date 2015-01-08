@@ -259,6 +259,14 @@ public class Replication implements ReplicationInternal.ChangeListener, NetworkR
 
     }
 
+    public void setIncludeDocs(boolean includeDocs) {
+        replicationInternal.setIncludeDocs(includeDocs);
+    }
+
+    public void setForceOverrideHistoryMissing(boolean forceOverrideHistoryMissing) {
+        replicationInternal.setForceOverrideHistoryMissing(forceOverrideHistoryMissing);
+    }
+
     /**
      * Set the Authenticator used for authenticating with the Sync Gateway
      */

@@ -129,6 +129,7 @@ public class PullerInternal extends ReplicationInternal implements ChangeTracker
         changeTracker.setDocIDs(documentIDs);
         changeTracker.setRequestHeaders(requestHeaders);
         changeTracker.setContinuous(lifecycle == Replication.Lifecycle.CONTINUOUS);
+        changeTracker.setIncludeDocs(includeDocs());
 
         changeTracker.setUsePOST(serverIsSyncGatewayVersion("0.93"));
         changeTracker.start();
@@ -494,7 +495,7 @@ public class PullerInternal extends ReplicationInternal implements ChangeTracker
             for (RevisionInternal rev : downloads) {
                 long fakeSequence = rev.getSequence();
                 List<String> history = db.parseCouchDBRevisionHistory(rev.getProperties());
-                if (history.isEmpty() && rev.getGeneration() > 1) {
+                if (history.isEmpty() && rev.getGeneration() > 1 && !isForceOverrideHistoryMissing()) {
                     Log.w(Log.TAG_SYNC, "%s: Missing revision history in response for: %s", this, rev);
                     setError(new CouchbaseLiteException(Status.UPSTREAM_ERROR));
                     revisionFailed();
@@ -734,6 +735,22 @@ public class PullerInternal extends ReplicationInternal implements ChangeTracker
             Log.w(Log.TAG_SYNC, "%s: Received invalid doc ID from _changes: %s", this, change);
             return;
         }
+
+        Object doc = change.get("doc");
+        if (doc instanceof Map) {
+            Map<String, Object> properties = (Map<String, Object>) doc;
+            PulledRevision gotRev = new PulledRevision(properties, db);
+            gotRev.setRemoteSequenceID(lastSequence);
+            // Add to batcher ... eventually it will be fed to -insertDownloads:.
+
+            // this is purposefully done slightly different than the ios version
+            addToChangesCount(1);
+
+            Log.d(Log.TAG_SYNC, "%s: pullRemoteRevision add rev: %s to batcher: %s", PullerInternal.this, gotRev, downloadsToInsert);
+            downloadsToInsert.queueObject(gotRev);
+            return;
+        }
+
         boolean deleted = (change.containsKey("deleted") && ((Boolean) change.get("deleted")).equals(Boolean.TRUE));
         List<Map<String, Object>> changes = (List<Map<String, Object>>) change.get("changes");
         for (Map<String, Object> changeDict : changes) {

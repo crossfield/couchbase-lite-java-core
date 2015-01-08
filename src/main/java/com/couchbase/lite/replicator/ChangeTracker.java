@@ -73,6 +73,7 @@ public class ChangeTracker implements Runnable {
     private int limit;
     private boolean caughtUp = false;
     private boolean continuous = false;  // is enclosing replication continuous?
+    private boolean includeDocs = false;
 
     private Authenticator authenticator;
 
@@ -100,6 +101,14 @@ public class ChangeTracker implements Runnable {
 
     public void setContinuous(boolean continuous) {
         this.continuous = continuous;
+    }
+
+    public void setIncludeDocs(boolean includeDocs) {
+        this.includeDocs = includeDocs;
+    }
+
+    public boolean includeDocs() {
+        return includeDocs;
     }
 
     public void setFilterName(String filterName) {
@@ -159,6 +168,10 @@ public class ChangeTracker implements Runnable {
 
         if (includeConflicts) {
             path += "&style=all_docs";
+        }
+
+        if (includeDocs) {
+            path += "&include_docs=true";
         }
 
         if(lastSequenceID != null) {
@@ -547,6 +560,9 @@ public class ChangeTracker implements Runnable {
             post.put("style","all_docs");
         } else {
             post.put("style", null);
+        }
+        if (includeDocs) {
+            post.put("include_docs",true);
         }
         if (lastSequenceID != null) {
             try {

@@ -101,6 +101,8 @@ abstract class ReplicationInternal implements BlockingQueueListener{
     protected BlockingQueue<Future> pendingFutures;
     private boolean savingCheckpoint;
     private boolean overdueForCheckpointSave;
+    private boolean includeDocs;
+    private boolean forceOverrideHistoryMissing;
 
 
     // the code assumes this is a _single threaded_ work executor.
@@ -1192,6 +1194,22 @@ abstract class ReplicationInternal implements BlockingQueueListener{
 
     public void setAuthenticator(Authenticator authenticator) {
         this.authenticator = authenticator;
+    }
+
+    public void setIncludeDocs(boolean includeDocs) {
+        this.includeDocs = includeDocs;
+    }
+
+    public boolean includeDocs() {
+        return includeDocs;
+    }
+
+    public boolean isForceOverrideHistoryMissing() {
+        return forceOverrideHistoryMissing;
+    }
+
+    public void setForceOverrideHistoryMissing(boolean forceOverrideHistoryMissing) {
+        this.forceOverrideHistoryMissing = forceOverrideHistoryMissing;
     }
 
     @InterfaceAudience.Private
