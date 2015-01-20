@@ -37,6 +37,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.HashMap;
@@ -446,6 +447,9 @@ public class ChangeTracker implements Runnable {
                     // in this case, just silently absorb the exception because it
                     // frequently happens when we're shutting down and have to
                     // close the socket underneath our read.
+                } else if (running && e instanceof SocketTimeoutException) {
+                    // that just means that we waited enough time, we can close it and re-open
+                    // a new one
                 } else {
                     Log.e(Log.TAG_CHANGE_TRACKER, this + ": Exception in change tracker", e);
                     this.error = e;
